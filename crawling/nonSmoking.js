@@ -23,9 +23,11 @@ const getHtml = async (Murl, MPageNum) => {
 
 const getHospitalList = async () => {
     const url = "https://hi.nhis.or.kr/ca/ggpca001/ggpca001_p06.do";
+    const pageDivisionCnt = 100;
+    const lastPage = 850;
     let hospitalList = [];
     let hospitalData = {};
-    for (var pageNum=1; pageNum<=850; pageNum++){
+    for (var pageNum=1; pageNum<=lastPage; pageNum++){
         const html = await getHtml(url, pageNum);
         let dataList = html.data.list;         
         dataList.forEach(data => {
@@ -41,15 +43,18 @@ const getHospitalList = async () => {
             
             hospitalList.push(hospitalData);
         });        
-        let IdxMod = pageNum % 100;
-        let IdxDiv = pageNum / 100;
-        if (IdxMod == 0){
+
+        let IdxMod = pageNum % pageDivisionCnt;
+        let IdxDiv = pageNum / pageDivisionCnt;
+        if (IdxMod == 0 || pageNum == lastPage){
+            IdxDiv = Math.ceil(IdxDiv);  
+
             let str = JSON.stringify(hospitalList);
             const outputFile = "output/nonSmokingHospitalList{0}.txt";
             fs.writeFile(sf(outputFile, IdxDiv), str, function (err) { 
                 if (err) 
                     throw err; 
-                console.log('The "data to writed" was writed to file!'); 
+                console.log(sf('{0}. The "data to writed" was writed to file!', IdxDiv)); 
             });
             hospitalList = [];
         }
