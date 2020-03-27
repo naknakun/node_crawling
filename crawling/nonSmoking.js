@@ -21,13 +21,14 @@ const getHtml = async (Murl, MPageNum) => {
     }
 };
 
-const getHospitalList = async () => {
+const getHospitalList = async (MstartPage, MlastPage, MpageDivisionCnt) => {
     const url = "https://hi.nhis.or.kr/ca/ggpca001/ggpca001_p06.do";
-    const pageDivisionCnt = 100;
-    const lastPage = 850;
+    const pageDivisionCnt = MpageDivisionCnt;
+    const startPage = MstartPage;
+    const lastPage = MlastPage;
     let hospitalList = [];
     let hospitalData = {};
-    for (var pageNum=1; pageNum<=lastPage; pageNum++){
+    for (var pageNum=startPage; pageNum<=lastPage; pageNum++){
         const html = await getHtml(url, pageNum);
         let dataList = html.data.list;         
         dataList.forEach(data => {
@@ -43,12 +44,14 @@ const getHospitalList = async () => {
             
             hospitalList.push(hospitalData);
         });        
+        console.log(sf('PAGENUM : {0}, LENGTH : {1}', pageNum, dataList.length));
 
         let IdxMod = pageNum % pageDivisionCnt;
         let IdxDiv = pageNum / pageDivisionCnt;
         if (IdxMod == 0 || pageNum == lastPage){
             IdxDiv = Math.ceil(IdxDiv);  
 
+            console.log(sf('{0} : {1}', IdxDiv, hospitalList.length));
             let str = JSON.stringify(hospitalList);
             const outputFile = "output/nonSmokingHospitalList{0}.txt";
             fs.writeFile(sf(outputFile, IdxDiv), str, function (err) { 
@@ -62,4 +65,10 @@ const getHospitalList = async () => {
     }  
 };
 
-getHospitalList();
+const startCrawling = () => {
+    const apageDivisionCnt = 10;
+    for (var i=1; i<=8; i++){
+        getHospitalList(((i-1)*apageDivisionCnt) + 1, i*apageDivisionCnt, apageDivisionCnt);
+    }    
+} 
+startCrawling();
