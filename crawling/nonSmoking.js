@@ -2,34 +2,42 @@ const axios = require("axios");
 const qs = require('querystring');
 const sf = require("sf");
 const fs = require('fs');
+const func = require('./mergeData');
+
+const OUTPUTDIR = "output/nonSmoking/Data";
+const FILENAME = "nonSmokingHospitalList{0}.txt";
 
 const getHtml = async (Murl, MPageNum) => {
     const requestBody = {
         searchType: 'hpNoSmoking',
         pageNum: MPageNum
-    }
-    
+    } 
+       
     const config = {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
         }
     }
+
     try {
         return await axios.post(Murl, qs.stringify(requestBody), config);
     } catch (error) {
-        console.error(error);
+        console.error('ERR PAGENUM : ' + MPageNum);
     }
 };
 
-const getHospitalList = async (MstartPage, MlastPage, MpageDivisionCnt) => {
+const getHospitalList = async (CstartPage, ClastPage, callback) => {
     const url = "https://hi.nhis.or.kr/ca/ggpca001/ggpca001_p06.do";
-    const pageDivisionCnt = MpageDivisionCnt;
-    const startPage = MstartPage;
-    const lastPage = MlastPage;
     let hospitalList = [];
     let hospitalData = {};
-    for (var pageNum=startPage; pageNum<=lastPage; pageNum++){
+    for (var pageNum=CstartPage; pageNum<=ClastPage; pageNum++){
         const html = await getHtml(url, pageNum);
+        if (typeof html == 'undefined')
+            continue;
+
+        if (html.data.totalCount == 0)
+            break;
+        
         let dataList = html.data.list;         
         dataList.forEach(data => {
             hospitalData = {};
@@ -40,35 +48,57 @@ const getHospitalList = async (MstartPage, MlastPage, MpageDivisionCnt) => {
             hospitalData.faxNo = data.FAX_NO;
             hospitalData.hosStep = data.CLSFC_CD_DESC;
             hospitalData.businessDay = data.HP_DESC;
-            hospitalData.isBest = data.IS_BEST;    
-            
+            hospitalData.isBest = typeof data.IS_BEST == 'undefined' ? null : data.IS_BEST;            
             hospitalList.push(hospitalData);
         });        
-        console.log(sf('PAGENUM : {0}, LENGTH : {1}', pageNum, dataList.length));
+        // console.log(sf('PAGENUM : {0}, LENGTH : {1}', pageNum, dataList.length));
+    }    
+    console.log(sf('{0} : {1}', CstartPage, hospitalList.length));
 
-        let IdxMod = pageNum % pageDivisionCnt;
-        let IdxDiv = pageNum / pageDivisionCnt;
-        if (IdxMod == 0 || pageNum == lastPage){
-            IdxDiv = Math.ceil(IdxDiv);  
-
-            console.log(sf('{0} : {1}', IdxDiv, hospitalList.length));
-            let str = JSON.stringify(hospitalList);
-            const outputFile = "output/nonSmokingHospitalList{0}.txt";
-            fs.writeFile(sf(outputFile, IdxDiv), str, function (err) { 
-                if (err) 
-                    throw err; 
-                console.log(sf('{0}. The "data to writed" was writed to file!', IdxDiv)); 
-            });
-            hospitalList = [];
-        }
-
-    }  
+    if (hospitalList.length > 0) {
+        let resultStr = JSON.stringify(hospitalList);
+        fs.writeFile(sf(OUTPUTDIR + FILENAME, CstartPage), resultStr, function (err) { 
+            if (err) 
+                throw err; 
+            console.log(sf('{0}. The "data to writed" was writed to file!', CstartPage)); 
+            callback();
+        });
+    }
+    else    
+        callback();
 };
 
-const startCrawling = () => {
-    const apageDivisionCnt = 10;
-    for (var i=1; i<=8; i++){
-        getHospitalList(((i-1)*apageDivisionCnt) + 1, i*apageDivisionCnt, apageDivisionCnt);
+const pathCheck = () => {
+    let dirPath = 'output/nonSmoking/mergeData/';
+    let isExists = fs.existsSync( dirPath );
+    if( !isExists ) {
+        fs.mkdirSync( dirPath, { recursive: true } );
+    }
+    dirPath = 'output/nonSmoking/Data/';
+    isExists = fs.existsSync( dirPath );
+    if( !isExists ) {
+        fs.mkdirSync( dirPath, { recursive: true } );
     }    
-} 
+}
+
+const startCrawling = () => {
+    pathCheck();
+
+    //병렬 처리할 개수 셋팅
+    const parallelCount = 9;    
+    let count = parallelCount;
+    //하나의 프로세스에서 처리할 페이지 개수
+    const pageLength = 100;
+
+    for (var idx = 0; idx < parallelCount; idx++){    
+        let AStatpage = (idx * pageLength) + 1;   
+        let ALastpage = (idx + 1) * pageLength;
+        getHospitalList(AStatpage, ALastpage, function () {
+            count--;
+            if (count === 0)
+                func.mergeData();
+        });
+    }
+}
+
 startCrawling();

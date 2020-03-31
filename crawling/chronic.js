@@ -84,7 +84,16 @@ const getHtml = async (url) => {
     }
 };
 
+const pathCheck = () => {
+    let dirPath = 'output/chronic/';
+    let isExists = fs.existsSync( dirPath );
+    if( !isExists ) {
+        fs.mkdirSync( dirPath, { recursive: true } );
+    }
+}
+
 const getHospitalList = async () => {
+    pathCheck();
     const url = "https://www.khealth.or.kr/ncd/townJoinClinic/tjcList.do?pageNum={0}";
     let dataList = [];
     for (var i = 48; i <= 48; i++) {
@@ -116,7 +125,7 @@ const getHospitalList = async () => {
 
     const data = dataList.filter(n => n.address);
     var str = JSON.stringify(data);
-    const HospitalList = "output/HospitalList.txt";
+    const HospitalList = "output/chronic/HospitalList.txt";
     fs.writeFile(HospitalList, str, function (err) { 
         if (err) 
             throw err; 
